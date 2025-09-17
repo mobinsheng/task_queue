@@ -9,25 +9,23 @@ Task Queue. List of Features:
 ## invoke
 ```cpp
 
-int add(int a, int b) {
-	return a + b;
-}
+int add(int a, int b) { return a + b; }
 
 void test_task_queue() {
   // defined task queue
-	lazy::TaskQueue task_queue("my task queue");
+  lazy::TaskQueue task_queue("my task queue");
 
-  // start 
-	task_queue.start();
+  // start
+  task_queue.start();
 
-	int a = 1, b = 2;
+  int a = 1, b = 2;
 
   // invoke task
-	auto sum = task_queue.invoke<int>([&] {return add(a, b); });
-	assert(sum == a + b);
+  auto sum = task_queue.invoke<int>([&] { return add(a, b); });
+  assert(sum == a + b);
 
   // stop
-	task_queue.stop();
+  task_queue.stop();
 }
 ```
 
@@ -36,45 +34,44 @@ void test_task_queue() {
 
 class Test {
 public:
-	Test() {
+  Test() {}
 
-	}
+  ~Test() {}
 
-	~Test() {
+  int get_val() const { return val_; }
 
-	}
-
-	int get_val() const {
-		return val_;
-	}
-
-	void compute() {
-		for (int i = 0; i < 1000000; ++i){
+  void compute() {
+    for (int i = 0; i < 1000000; ++i) {
       val_ += i;
     }
-	}
+  }
+
 private:
-	int64_t val_ = 0;
+  int64_t val_ = 0;
 };
 
-
 void test_task_queue() {
-	lazy::TaskQueue task_queue("my task queue");
-	task_queue.start();
+  // define task queue
+  lazy::TaskQueue task_queue("my task queue");
 
-	Test test;
+  // start
+  task_queue.start();
 
-  uint64_t task1_id = 0;
+  Test test;
 
-	task_queue.add_task([&] {test.compute(); }, task1_id);
+  // add task without task id
+  task_queue.add_task([&] { test.compute(); });
 
   uint64_t task2_id = 1;
 
-	task_queue.add_task([&] {test.compute(); }, task2_id);
+  // add task with task id
+  task_queue.add_task([&] { test.compute(); }, task2_id);
 
+  // cancel a task
   task_queue.cancel(task2_id);
 
-	task_queue.stop();
+  // stop
+  task_queue.stop();
 }
 ```
 
@@ -83,84 +80,76 @@ void test_task_queue() {
 
 class Test {
 public:
-	Test() {
+  Test() {}
 
-	}
+  ~Test() {}
 
-	~Test() {
+  int get_val() const { return val_; }
 
-	}
-
-	int get_val() const {
-		return val_;
-	}
-
-	void compute() {
-		for (int i = 0; i < 1000000; ++i){
+  void compute() {
+    for (int i = 0; i < 1000000; ++i) {
       val_ += i;
     }
-	}
+  }
+
 private:
-	int64_t val_ = 0;
+  int64_t val_ = 0;
 };
 
-
 void test_task_queue() {
-	lazy::TaskQueue task_queue("my task queue");
-	task_queue.start();
+  lazy::TaskQueue task_queue("my task queue");
+  task_queue.start();
 
-	int a = 1, b = 2;
+  Test test;
 
-	auto sum = task_queue.invoke<int>([&] {return add(a, b); });
-	assert(sum == a + b);
+  // post task without task id
+  task_queue.post([&] { test.compute(); });
 
-	Test test;
+  uint64_t task2_id = 0;
 
+  // post task with task id
+  task_queue.post([&] { test.compute(); }, task2_id);
 
-	task_queue.post([&] {test.compute(); });
+  // cancel a task
+  task_queue.cancel(task2_id);
 
-	uint64_t task2_id = 0;
+  int delay_ms = 500;
 
-	task_queue.post([&] {test.compute(); }, task2_id);
+  // post a delayed task
+  task_queue.post_delayed([&] { test.compute(); }, delay_ms);
 
-	task_queue.cancel(task2_id);
+  uint64_t task3_id = 1;
 
-	int delay_ms = 500;
+  int repeat_num = 3;
 
-	task_queue.post_delayed([&] {test.compute(); }, delay_ms);
+  // post a delayed and repeat task
+  task_queue.post_delayed_and_repeat([&] { test.compute(); }, delay_ms,
+                                     task3_id, repeat_num);
 
-	uint64_t task3_id = 1;
-
-	int repeat_num = 3;
-
-	task_queue.post_delayed_and_repeat([&] {test.compute(); }, delay_ms, task3_id, repeat_num);
-
-	task_queue.stop();
+  task_queue.stop();
 }
 ```
 
 ## timer
 ```cpp
-
-void timer_func() {
-	printf("test\r\n");
-}
+void timer_func() { printf("test\r\n"); }
 
 void test_task_queue() {
-	lazy::TaskQueue task_queue("my task queue");
-	task_queue.start();
+  lazy::TaskQueue task_queue("my task queue");
+  task_queue.start();
 
-	uint64_t timer_id = 0;
+  uint64_t timer_id = 0;
 
-	uint32_t interval_ms = 500;
+  uint32_t interval_ms = 500;
 
-	task_queue.add_timer([&] {timer_func(); }, interval_ms, timer_id);
+  // add a timer
+  task_queue.add_timer([&] { timer_func(); }, interval_ms, timer_id);
 
-	Sleep(20 * 1000);
+  Sleep(20 * 1000);
 
-	task_queue.cancel(timer_id);
+  // stop timer
+  task_queue.cancel(timer_id);
 
-	task_queue.stop();
+  task_queue.stop();
 }
-
 ```
