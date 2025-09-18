@@ -7,6 +7,8 @@ static void SleepMs(uint32_t ms) {
 class Test {
 public:
     void compute(uint32_t n) {
+        sum_ = 0;
+
         for (uint32_t i = 0; i < n; ++i){
             sum_ += i;
 
@@ -28,9 +30,9 @@ int main(){
 
     int n = 10;
 
-    uint64_t task_id = 2;
+    uint64_t task_id = task_queue.post([&]{test.compute(n);});
 
-    task_queue.post([&]{test.compute(n);}, task_id);
+    uint64_t task_id2 = task_queue.post([&]{test.compute(n);});
 
     task_queue.cancel(task_id);
 
