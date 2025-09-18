@@ -2,154 +2,118 @@
 Task Queue. List of Features: 
 - invoke: Add the task into the task queue and wait for it to complete
 - post: Put the task into the task queue and return immediately without waiting for it to complete
-- add_task: like post
 - timer: Put a task into the queue and execute it repeatedly
 
 
 ## invoke
 ```cpp
 
-int add(int a, int b) { return a + b; }
-
-void test_task_queue() {
-  // defined task queue
-  lazy::TaskQueue task_queue("my task queue");
-
-  // start
-  task_queue.start();
-
-  int a = 1, b = 2;
-
-  // invoke task
-  auto sum = task_queue.invoke<int>([&] { return add(a, b); });
-  assert(sum == a + b);
-
-  // stop
-  task_queue.stop();
-}
-```
-
-## add_task
-```cpp
+#include "task_queue.h"
 
 class Test {
 public:
-  Test() {}
+    uint64_t compute(uint32_t n) {
+        uint64_t sum = 0;
+        for (uint32_t i = 0; i < n; ++i){
+            sum += i;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
 
-  ~Test() {}
-
-  int get_val() const { return val_; }
-
-  void compute() {
-    for (int i = 0; i < 1000000; ++i) {
-      val_ += i;
+        return sum;
     }
-  }
-
-private:
-  int64_t val_ = 0;
 };
 
-void test_task_queue() {
-  // define task queue
-  lazy::TaskQueue task_queue("my task queue");
+int main(){
+    lazy::TaskQueue task_queue("my task queue");
 
-  // start
-  task_queue.start();
+    task_queue.start();
 
-  Test test;
+    Test test;
 
-  // add task without task id
-  task_queue.add_task([&] { test.compute(); });
+    uint64_t sum = task_queue.invoke<uint64_t>(std::bind(&Test::compute, &test, 10));
 
-  uint64_t task2_id = 1;
+    task_queue.stop();
 
-  // add task with task id
-  task_queue.add_task([&] { test.compute(); }, task2_id);
-
-  // cancel a task
-  task_queue.cancel(task2_id);
-
-  // stop
-  task_queue.stop();
+    return 0;
 }
 ```
 
 ## post
 ```cpp
+#include "task_queue.h"
+
+static void SleepMs(uint32_t ms) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+}
 
 class Test {
 public:
-  Test() {}
+    void compute(uint32_t n) {
+        sum_ = 0;
 
-  ~Test() {}
+        for (uint32_t i = 0; i < n; ++i){
+            sum_ += i;
 
-  int get_val() const { return val_; }
-
-  void compute() {
-    for (int i = 0; i < 1000000; ++i) {
-      val_ += i;
+            SleepMs(10);
+        }
     }
-  }
-
+    uint64_t Sum() {return sum_;}
 private:
-  int64_t val_ = 0;
+    uint64_t sum_ = 0;
 };
 
-void test_task_queue() {
-  lazy::TaskQueue task_queue("my task queue");
-  task_queue.start();
 
-  Test test;
+int main(){
+    lazy::TaskQueue task_queue("my task queue");
 
-  // post task without task id
-  task_queue.post([&] { test.compute(); });
+    task_queue.start();
 
-  uint64_t task2_id = 0;
+    Test test;
 
-  // post task with task id
-  task_queue.post([&] { test.compute(); }, task2_id);
+    int n = 10;
 
-  // cancel a task
-  task_queue.cancel(task2_id);
+    uint64_t task_id = task_queue.post([&]{test.compute(n);});
 
-  int delay_ms = 500;
+    uint64_t task_id2 = task_queue.post([&]{test.compute(n);});
 
-  // post a delayed task
-  task_queue.post_delayed([&] { test.compute(); }, delay_ms);
+    task_queue.cancel(task_id);
 
-  uint64_t task3_id = 1;
+    SleepMs(1000);
 
-  int repeat_num = 3;
+    uint64_t sum = test.Sum();
 
-  // post a delayed and repeat task
-  task_queue.post_delayed_and_repeat([&] { test.compute(); }, delay_ms,
-                                     task3_id, repeat_num);
+    task_queue.stop();
 
-  task_queue.stop();
+    return 0;
 }
 ```
 
 ## timer
 ```cpp
-void timer_func() { printf("test\r\n"); }
+#include "task_queue.h"
 
-void test_task_queue() {
-  lazy::TaskQueue task_queue("my task queue");
-  task_queue.start();
+int val = 0;
 
-  uint64_t timer_id = 0;
+void timer_func() {
+    printf("%d\r\n", val);
+    ++val;
+}
 
-  uint32_t interval_ms = 500;
+int main(){
+    lazy::TaskQueue task_queue("my task queue");
 
-  // add a timer
-  task_queue.add_timer([&] { timer_func(); }, interval_ms, timer_id);
+    task_queue.start();
 
-  Sleep(20 * 1000);
+    int interval_ms = 500;
 
-  // stop timer
-  task_queue.cancel(timer_id);
+    uint64_t timer_id = task_queue.add_timer(timer_func,interval_ms);
 
-  task_queue.stop();
+    std::this_thread::sleep_for(std::chrono::milliseconds(20 * 1000));
+
+    task_queue.remove_timer(timer_id);
+
+    task_queue.stop();
+
+    return 0;
 }
 ```
