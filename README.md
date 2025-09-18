@@ -1,8 +1,23 @@
-# task_queue
-Task Queue. List of Features: 
-- invoke: Add the task into the task queue and wait for it to complete
-- post: Put the task into the task queue and return immediately without waiting for it to complete
-- timer: Put a task into the queue and execute it repeatedly
+# TaskQueue
+The TaskQueue class implements a lightweight task queue with the following features:
+
+1. Asynchronous Task Execution
+    - Allows submitting arbitrary functions or callable objects asynchronously to the queue, executed by an internal worker thread.
+
+2. Delayed Task Scheduling
+    - Supports scheduling tasks to execute after a specified delay, enabling timer-like functionality.
+
+3. Repeated Task Execution (Timers)
+    - Supports periodic repeated execution of tasks, configurable with a specific repeat count or infinite repetition.
+
+4. Synchronous Task Execution
+    - Allows invoking tasks synchronously and waiting for their completion with a returned result.
+
+5. Task Cancellation
+    - Enables cancellation of submitted but not yet executed tasks by their task ID, particularly useful for timer removal.
+
+6. Thread Safety
+    - Employs mutexes and condition variables internally to ensure safe access to the queue in multithreaded environments.
 
 
 ## invoke
@@ -30,6 +45,7 @@ int main(){
 
     Test test;
 
+    // invoke task
     uint64_t sum = task_queue.invoke<uint64_t>(std::bind(&Test::compute, &test, 10));
 
     task_queue.stop();
@@ -72,10 +88,13 @@ int main(){
 
     int n = 10;
 
+    // post task1
     uint64_t task_id = task_queue.post([&]{test.compute(n);});
 
+    // post task2
     uint64_t task_id2 = task_queue.post([&]{test.compute(n);});
 
+    // cancel task1
     task_queue.cancel(task_id);
 
     SleepMs(1000);
@@ -106,10 +125,12 @@ int main(){
 
     int interval_ms = 500;
 
+    // add timer
     uint64_t timer_id = task_queue.add_timer(timer_func,interval_ms);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(20 * 1000));
 
+    // stop timer
     task_queue.remove_timer(timer_id);
 
     task_queue.stop();
