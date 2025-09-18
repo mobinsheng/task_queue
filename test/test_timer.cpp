@@ -14,9 +14,7 @@ int main(){
 
     int interval_ms = 500;
 
-    uint64_t timer_id = 8;
-
-    task_queue.add_timer(timer_func,interval_ms, timer_id);
+    uint64_t timer_id = task_queue.add_timer(timer_func,interval_ms);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(20 * 1000));
 
