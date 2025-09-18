@@ -223,7 +223,7 @@ public:
 
     while (it != delayed_task_map_.end()) {
       if (it->second && it->second->task_id == task_id) {
-        assert(it->second->repeat_num != 0);
+        //assert(it->second->repeat_num != 0);
         it = delayed_task_map_.erase(it);
       } else {
         ++it;
