@@ -242,7 +242,7 @@ public:
   }
 
   /**
-   * @brief 
+   * @brief Posts a delayed task with repeat capability.
    * 
    * @tparam Closure 
    * @param closure : task
