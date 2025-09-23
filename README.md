@@ -23,118 +23,85 @@ The TaskQueue class implements a lightweight task queue with the following featu
 ## invoke
 ```cpp
 
-#include "task_queue.h"
+void test_sync_invoke() {
+    std::cout << "[Test] Sync invoke... ";
+    TaskQueue queue("test_queue_3");
+    queue.start();
 
-class Test {
-public:
-    uint64_t compute(uint32_t n) {
-        uint64_t sum = 0;
-        for (uint32_t i = 0; i < n; ++i){
-            sum += i;
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
+    int result = queue.invoke<int>([] {
+        return 123;
+    });
 
-        return sum;
-    }
-};
+    queue.stop();
 
-int main(){
-    lazy::TaskQueue task_queue("my task queue");
-
-    task_queue.start();
-
-    Test test;
-
-    // invoke task
-    uint64_t sum = task_queue.invoke<uint64_t>(std::bind(&Test::compute, &test, 10));
-
-    task_queue.stop();
-
-    return 0;
+    assert(result == 123);
+    std::cout << "OK\n";
 }
 ```
 
 ## post
 ```cpp
-#include "task_queue.h"
 
-static void SleepMs(uint32_t ms) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+void test_basic_async_post() {
+    std::cout << "[Test] Basic async post... ";
+    TaskQueue queue("test_queue_1");
+    queue.start();
+
+    std::atomic<bool> called{false};
+    queue.post([&] {
+        called = true;
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    queue.stop();
+
+    assert(called.load());
+    std::cout << "OK\n";
 }
 
-class Test {
-public:
-    void compute(uint32_t n) {
-        sum_ = 0;
+void test_delayed_task() {
+    std::cout << "[Test] Delayed task... ";
+    TaskQueue queue("test_queue_2");
+    queue.start();
 
-        for (uint32_t i = 0; i < n; ++i){
-            sum_ += i;
+    std::atomic<bool> called{false};
+    auto start = NowMs();
 
-            SleepMs(10);
-        }
-    }
-    uint64_t Sum() {return sum_;}
-private:
-    uint64_t sum_ = 0;
-};
+    queue.post_delayed([&] {
+        called = true;
+    }, 200);
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    queue.stop();
 
-int main(){
-    lazy::TaskQueue task_queue("my task queue");
-
-    task_queue.start();
-
-    Test test;
-
-    int n = 10;
-
-    // post task1
-    uint64_t task_id = task_queue.post([&]{test.compute(n);});
-
-    // post task2
-    uint64_t task_id2 = task_queue.post([&]{test.compute(n);});
-
-    // cancel task1
-    task_queue.cancel(task_id);
-
-    SleepMs(1000);
-
-    uint64_t sum = test.Sum();
-
-    task_queue.stop();
-
-    return 0;
+    assert(called.load());
+    auto end = NowMs();
+    assert(end - start >= 200);
+    std::cout << "OK\n";
 }
+
 ```
 
 ## timer
 ```cpp
-#include "task_queue.h"
 
-int val = 0;
+void test_timer_repeat() {
+    std::cout << "[Test] Timer repeat... ";
+    TaskQueue queue("test_queue_4");
+    queue.start();
 
-void timer_func() {
-    printf("%d\r\n", val);
-    ++val;
-}
+    std::atomic<int> count{0};
 
-int main(){
-    lazy::TaskQueue task_queue("my task queue");
+    int64_t id = queue.add_timer([&] {
+        count++;
+    }, 100);
 
-    task_queue.start();
+    std::this_thread::sleep_for(std::chrono::milliseconds(350));
+    queue.remove_timer(id);
 
-    int interval_ms = 500;
+    queue.stop();
 
-    // add timer
-    uint64_t timer_id = task_queue.add_timer(timer_func,interval_ms);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(20 * 1000));
-
-    // stop timer
-    task_queue.remove_timer(timer_id);
-
-    task_queue.stop();
-
-    return 0;
+    assert(count.load() >= 3);  // 至少触发三次
+    std::cout << "OK\n";
 }
 ```
