@@ -41,32 +41,40 @@ class QueuedTask {
 public:
   QueuedTask() {}
   virtual ~QueuedTask() {}
+
+  // Executes the task logic.
   virtual void run() = 0;
 
-  // call run
+  // Shortcut to run the task via function call operator.
   void operator()() { run(); }
 
-  // unique id
+  // Unique task ID (-1 means uninitialized).
   int64_t task_id = -1;
 
-  // is sync task
+  // True if this is a synchronous task.
   bool is_sync = false;
 
-  // is task execute finish
+  // Whether the task has been finished (executed).
   std::atomic<bool> finished{false};
 
   // async task -- begin
 
+  // Time the task was enqueued (in ms since epoch).
   int64_t enqueue_time_ms = 0;
 
+  // Delay before execution in milliseconds.
   uint32_t delay_ms = 0;
 
+  // Number of times to repeat the task.
+  // 0 = execute once, -1 = repeat forever, >0 = repeat N times.
   uint64_t repeat_num = 0;
   
+  // Number of times the task has been executed.
   uint64_t invoke_count = 0;
 
   // async task -- end
 private:
+  // Disable copy constructor.
   QueuedTask(const QueuedTask &) = delete;
 };
 
@@ -132,10 +140,19 @@ static SharedClosure MakeSharedClosure(Closure &&closure) {
 */
 class TaskQueue {
 public:
+  /**
+   * @brief Construct a new Task Queue object
+   * 
+   * @param name : task queue name
+   */
   TaskQueue(const std::string &name) : name_(name) {}
 
   ~TaskQueue() { stop(); }
 
+  /**
+   * @brief Starts the task queue thread if not already running.
+   * 
+   */
   void start() {
     if (thread_.joinable()) {
       return;
@@ -152,6 +169,11 @@ public:
     thread_ = std::thread(std::bind(&TaskQueue::run, this));
   }
 
+  /**
+   * @brief Stops the task queue, cancels pending tasks, and joins the thread.
+   * If a stop task was already posted, it waits for the thread to finish.
+   * 
+   */
   void stop() {
     if (thread_.joinable()) {
       {
@@ -169,47 +191,79 @@ public:
     }
   }
 
+  /**
+   * @brief Returns true if the task queue is running (not stopped).
+   * 
+   * @return true 
+   * @return false 
+   */
   bool running() const { return !stopped_; }
 
-  // 判断当前所在的线程是否和任务队列的线程为同一个
+  /**
+   * @brief Returns true if the current thread is the task queue thread.
+   * 
+   * @return true 
+   * @return false 
+   */
   bool is_current() const {
     return std::this_thread::get_id() == thread_.get_id();
   }
 
+  /**
+   * @brief Returns the name of the task queue.
+   * 
+   * @return const std::string& 
+   */
   const std::string &name() const { return name_; }
 
-  // 添加异步任务，和add_task效果一样
+  /**
+   * @brief Posts an asynchronous task to the queue with no delay and no repetition.
+   * 
+   * @tparam Closure 
+   * @param closure : task
+   * @return int64_t : task id, -1 means fail
+   */
   template <class Closure> int64_t post(Closure &&closure) {
-    // 最后一个参数(repeat_num)等于0表示不是重复任务
     return post_delayed_internal(std::forward<Closure>(closure), 0, 0, false);
   }
 
-  /* 添加带延迟的异步任务
-   * closure: 可执行对象
-   * delay_or_interval_ms: 延迟执行的时间
+  /**
+   * @brief Posts an asynchronous task to the queue with no delay and no repetition.
+   * 
+   * @tparam Closure 
+   * @param closure : task
+   * @param delay_ms: time to wait before first execution. 
+   * @return int64_t : task id, -1 means fail
    */
   template <class Closure>
-  int64_t post_delayed(Closure &&closure, uint32_t delay_or_interval_ms) {
+  int64_t post_delayed(Closure &&closure, uint32_t delay_ms) {
     return post_delayed_internal(std::forward<Closure>(closure),
-                                 delay_or_interval_ms, 0, false);
+                                 delay_ms, 0, false);
   }
 
-  /* 添加带延迟的异步任务
-   * closure: 可执行对象
-   * delay_or_interval_ms: 延迟执行的时间
-   * repeat_num:
-   * 重复次数，默认是0表示不重复，等于-1表示无限重复/循环，大于0表示重复指定次数
+  /**
+   * @brief 
+   * 
+   * @tparam Closure 
+   * @param closure : task
+   * @param delay_ms :delay before first execution and interval between repeats.
+   * @param repeat_num : number of times to execute (0 = once, -1 = infinite).
+   * @return int64_t : task id, -1 means fail
    */
   template <class Closure>
   int64_t post_delayed_and_repeat(Closure &&closure,
-                                  uint32_t delay_or_interval_ms,
+                                  uint32_t delay_ms,
                                   uint64_t repeat_num) {
     return post_delayed_internal(std::forward<Closure>(closure),
-                                 delay_or_interval_ms, repeat_num, false);
+                                 delay_ms, repeat_num, false);
   }
 
-  // 取消一个异步任务
-  // 对于周期性执行的任务（定时器），最好指定一个id，这样方便取消
+  /**
+   * @brief Cancels a pending delayed or repeating task using its ID.
+   * Does nothing if task is already executing or completed.
+   * 
+   * @param task_id 
+   */
   void cancel(int64_t task_id) {
     std::unique_lock<std::mutex> guard(mutex_);
 
@@ -234,7 +288,14 @@ public:
     }
   }
 
-  // 添加定时器，需要明确指定一个id
+  /**
+   * @brief Adds a timer task that repeats every interval_ms milliseconds
+   * 
+   * @tparam Closure 
+   * @param closure 
+   * @param interval_ms 
+   * @return int64_t : task id, -1 means fail
+   */
   template <class Closure>
   int64_t add_timer(Closure &&closure, uint32_t interval_ms) {
 
@@ -246,10 +307,20 @@ public:
                                  REPEAT_FOREVER, false);
   }
 
-  // 移除定时器
+  /**
+   * @brief Cancels a previously added timer.
+   * 
+   * @param task_id 
+   */
   void remove_timer(int64_t task_id) { return cancel(task_id); }
 
-  // 执行同步任务
+  /**
+   * @brief Executes a task synchronously on the task queue thread and waits for the result.
+   * Blocks until task completes.
+   * 
+   * @param closure : task
+   * @return ReturnT : the result of the closure.
+   */
   template <class ReturnT, class Closure> ReturnT invoke(Closure &&closure) {
 
     if (stopped_) {
